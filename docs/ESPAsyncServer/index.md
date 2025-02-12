@@ -9,14 +9,26 @@ versions:
   - <version>
 ---
 
-## Introduction
+# Introduction
 
 First of all, thank you for attending the esp32 workshop!  
 The following will be an appendix for the workshop which will go through each part of the code in more detail and outline some other important concepts so you can work with the ESP32 with confidence.  
 The guide assumes that you have a working ESP32 Wroom connected to your computer and the arduino IDE installed, which can be downloaded at [arduino.cc](https://www.arduino.cc/en/software).
   
-### TOC
+## TOC
+- [Introduction](#introduction)
+  - [TOC](#toc)
+- [Setup](#setup)
+  - [Install ESP32 Board](#install-esp32-board)
+  - [Install the Libraries](#install-the-libraries)
+  - [Connect to the ESP32](#connect-to-the-esp32)
+- [LED Demo](#led-demo)
+  - [Blink Demo](#blink-demo)
+  - [Setting up WebServer](#setting-up-webserver)
+  - [HTML and JS for the LED](#html-and-js-for-the-led)
+  - [Final Code](#final-code)
 - [Appendix](#appendix)
+  - [References](#references)
   - [Important Websocket Concepts](#important-websocket-concepts)
     - [Introduction](#introduction-1)
     - [Outline of Websockets](#outline-of-websockets)
@@ -31,20 +43,22 @@ The guide assumes that you have a working ESP32 Wroom connected to your computer
   - [Coding Reference](#coding-reference)
     - [Aliases](#aliases)
       - [ArRequstHandlerFunction](#arrequsthandlerfunction)
-      - [ArUploadHandlerFunctoin](#aruploadhandlerfunctoin)
+      - [ArUploadHandlerFunction](#aruploadhandlerfunction)
       - [ArBodyHandlerFunction](#arbodyhandlerfunction)
+      - [AwsTemplateProcessor](#awstemplateprocessor)
     - [Enums](#enums)
       - [WebRequestMethod](#webrequestmethod)
+      - [SendStatus](#sendstatus)
     - [Classes](#classes)
       - [AsyncWebServer](#asyncwebserver)
       - [AsyncWebSocket](#asyncwebsocket)
-      - [SendStatus](#sendstatus)
+    - [AsyncWebServerRequest](#asyncwebserverrequest)
 
-## Setup
+# Setup
 
 This section will guide you on how to setup your ESP32 so that you can use it with your computer.    
   
-### Install ESP32 Board
+## Install ESP32 Board
 First we have to install the board to ensure that our computer can communicate with the ESP32. 
 1. Go to preferences.
 2. Click the button next to *Additional boards manager URLS*.
@@ -52,13 +66,13 @@ First we have to install the board to ensure that our computer can communicate w
 4. On the left hand side, click on the board manager icon (should be the second one from the top).
 5. Search *ESP32* and install *esp32 by Espressif Systems*.
 
-### Install the Libraries
+## Install the Libraries
 Now that we have installed the board for the ESP32, we have to install the libraries that we will be using.  
 1. On the left hand side, click the libraries icon (should be the third one from the top and looks like a row of boooks).
 2. Search *ESPAsyncWebServer* and install the one by *ESP32Async*.
 3. Search *ESPAsyncTCP* and install the one by *ESP32Async*.
 
-### Connect to the ESP32
+## Connect to the ESP32
 Finally, we have installed all we need to make a webserver on the ESP32. All that's left is actually connecting the computer to the ESP32.
 1. Plug in the ESP32 into the computer.
 2. Click on the connection at the top of the IDE and click *Select other board or port...*
@@ -67,10 +81,10 @@ Finally, we have installed all we need to make a webserver on the ESP32. All tha
 
 Now the ESP32 is connected to our computer with all the proper software. All that's left is to start coding!
 
-## LED Demo
+# LED Demo
 In this section, we will be running a simple web server to turn on and off an LED using a website. During this section, the various concepts of Web servers and Web sockets will be introduced in a project based environment. If you need any more information about Webservers or sockets look at the Appendix for extra resources.
 
-### Blink Demo
+## Blink Demo
 Before we even start, let's just test that the ESP32 works and send it a basic blink demo.  
 First, wire the ESP32 as you see below.  
 
@@ -93,7 +107,7 @@ void loop() {
 ```
 Now you should have a blinking LED on your breadboard.
 
-### Setting up WebServer
+## Setting up WebServer
 Before writing the actual server code, we need some basic code to setup the LED and the connection with the ESP32.
 ```cpp
 // Imports needed 
@@ -245,7 +259,7 @@ void loop() {
 ```
 A lot of this code is probably very confusing, which is normal as there is a lot of background knowledge about networking, severs, and websockets needed. However, start by going through the setup function and for anything that you don't understand, look at the appendix.
 
-### HTML and JS for the LED
+## HTML and JS for the LED
 Finally, we will add the index_html that was in the previous code:
 ```html
 const char index_html[] PROGMEM = R"rawliteral(
@@ -323,7 +337,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 ```
 This tutorial is not meant to teach you HTML or JavaScript and as such there will not be too much detail on this. However, you can find more information on the websocket API at [MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API).
 
-### Final Code
+## Final Code
 Here's the final code:
 ```cpp
 #include <WiFi.h>
@@ -483,6 +497,12 @@ void loop() {
 
 # Appendix
 
+## References
+- [ESPAsyncWebServer Github](https://github.com/ESP32Async/ESPAsyncWebServer)
+- [RFC6455](https://www.rfc-editor.org/rfc/pdfrfc/rfc6455.txt.pdf) (The websocket specification)
+- [Websocket Wikipedia](https://en.wikipedia.org/wiki/WebSocket#Closing_handshake)
+- [Javascript Websocket Reference MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+
 ## Important Websocket Concepts
 
 ### Introduction
@@ -566,24 +586,39 @@ However, no technology is perfect and similarly neither is websockets. The main 
 
 ### Aliases
 #### ArRequstHandlerFunction
-`function<void(AsyncWebServer *request)>`
-#### ArUploadHandlerFunctoin
-`function<void(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)>`
+`function<void(AsyncWebServer *request)>`  
+See [AsyncWebServer](#asyncwebserver).
+#### ArUploadHandlerFunction
+`function<void(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)>`  
+See [AsyncWebServerRequest](#asyncwebserverrequest)
 #### ArBodyHandlerFunction
 `function<void(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)>`
+See [AsyncWebServerRequest](#asyncwebserverrequest)
+#### AwsTemplateProcessor
+`function<size_t(uint8_t*, size_t, size_t)>`
+
 
 ### Enums
 #### WebRequestMethod
 ```cpp
-  HTTP_GET = 0b00000001,
-  HTTP_POST = 0b00000010,
-  HTTP_DELETE = 0b00000100,
-  HTTP_PUT = 0b00001000,
-  HTTP_PATCH = 0b00010000,
-  HTTP_HEAD = 0b00100000,
-  HTTP_OPTIONS = 0b01000000,
-  HTTP_ANY = 0b01111111,
+  HTTP_GET = 0b00000001
+  HTTP_POST = 0b00000010
+  HTTP_DELETE = 0b00000100
+  HTTP_PUT = 0b00001000
+  HTTP_PATCH = 0b00010000
+  HTTP_HEAD = 0b00100000
+  HTTP_OPTIONS = 0b01000000
+  HTTP_ANY = 0b01111111
 ```
+#### SendStatus
+```cpp
+DISCARDED = 0
+ENQUEUED = 1
+PARTIALLY_ENQUEUED = 2
+```
+- Discarded - All messages sent were unsucessfull.
+- Enqueued - All mesages sent were sucessfull.
+- Partially enqueued - Some messages were successfull and other weren'ts
 
 ### Classes
 
@@ -598,7 +633,10 @@ Methods:
 - `AsyncCallbackWebHandler& on(const char *uri, WebRequestMethodComposite method, ArRequestHandlerFunction onRequest, ArUploadHandlerFunction onUpload = nullptr, ArBodyHandlerFunction onBody = nullptr)` with variation
   - Handles different parts of requests to a specific uri, `uri`.
   - The `method` is the HTTP method that will be used in the response.
-  - The `onrequest` function that will handle the 
+  - The `onRequest` [function](#arrequsthandlerfunction) that will handle the intital request.
+  - The `onUpload` [function](#aruploadhandlerfunction) will handle an uploaded file (I think???).
+  - The `onBody` [function](#arbodyhandlerfunction) will handle the body of the request (I think???).
+  - The last two aren't required for our use case.
 - `AsyncWebHandler& addHandler(AsyncWebHandler* handler)`
   - Adds a handler for incoming events to the server
   - For the sockets, you can use a [AsyncWebSocket](#asyncwebsocket) as it is a child of AsyncWebHandler
@@ -661,4 +699,20 @@ Methods:
 - `void cleanupClients(uint16_t maxClients = DEFAULT_MAX_WS_CLIENTS)`
   - Goes through the client list in the websocket and removes any that are disconnected/non-existant.
 
-#### SendStatus
+### AsyncWebServerRequest
+- A request that a client made to the server.
+- Stores the client that made the request, client, and information about the request.
+- This is more related to HTTP and Servers and thus will not be covered in detail.
+- You shouldn't make one yourself and as such the constructor is omitted.
+- Methods:
+  - `AsyncClient *client()`
+    - Returns the client that sent the request.
+  - `void send(...)` parameters ommitted due to large number of variations.
+    - Sends a response to the request the client made.
+  - `void send_P(int code, const String& contentType, const uint8_t* content, size_t len, AwsTemplateProcessor callback = nullptr)` with variations
+    - Sends a reponse to the request in a specified format.
+    - `code` is the HTTP code that will be the response.
+    - `contentType` is the type of content being sent. Ex. `"text/html"`.
+    - `content` is the content being sent.
+    - `len` is the len of the content being sent.
+    - `callback` is the [function](#awstemplateprocessor) that will proces the content and the return what will be sent to client.
