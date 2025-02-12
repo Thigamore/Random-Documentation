@@ -41,13 +41,18 @@ The guide assumes that you have a working ESP32 Wroom connected to your computer
       - [ArUploadHandlerFunction](#aruploadhandlerfunction)
       - [ArBodyHandlerFunction](#arbodyhandlerfunction)
       - [AwsTemplateProcessor](#awstemplateprocessor)
+    - [AwsEventHandler](#awseventhandler)
     - [Enums](#enums)
       - [WebRequestMethod](#webrequestmethod)
       - [SendStatus](#sendstatus)
-    - [Classes](#classes)
+      - [AwsFrameType](#awsframetype)
+      - [AwsEventType](#awseventtype)
+    - [Classes/Structs](#classesstructs)
       - [AsyncWebServer](#asyncwebserver)
+      - [AsyncWebSocketClient](#asyncwebsocketclient)
       - [AsyncWebSocket](#asyncwebsocket)
-    - [AsyncWebServerRequest](#asyncwebserverrequest)
+      - [AsyncWebServerRequest](#asyncwebserverrequest)
+      - [AwsFrameInfo](#awsframeinfo)
 
 # Setup
 
@@ -521,7 +526,7 @@ All data is sent in the form of frames with a frame header and message data. The
 
 FIN and the opcode are both parts of the header which will be described in the next section.
 #### Frame Structure
-Some important header fields and their values is described below:
+Some important frame fields and their values is described below:
 - FIN:
   - Refers to which part of a fragmented message a message belongs to. See [Frame Fragmentation](#frame-fragmentation).
   - Values:
@@ -592,6 +597,21 @@ See [AsyncWebServerRequest](#asyncwebserverrequest)
 #### AwsTemplateProcessor
 `function<size_t(uint8_t*, size_t, size_t)>`
 
+### AwsEventHandler
+`function<void(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len)>`  
+- server is the [websocket server](#asyncwebsocket) of the connection.
+- client is the [websocket client](#asyncwebsocketclient) of the connection.
+- type is the [event type](#awseventtype) of the event.
+- arg is the argument of the event.
+  - For a disconnect or data is sent, arg is [AwsFrameInfo](#awsframeinfo).
+  - For a ping or pong event, arg is NULL.
+  - For an error, arg is the reason code.
+- data is the data being sent.
+  - For a disconnect or data is sent, data is the data sent with the frame.
+  - For a ping or pong event, data is NULL.
+  - For an error, data is a string with the reason behind the error.
+- len is the length of the message.
+
 
 ### Enums
 #### WebRequestMethod
@@ -613,9 +633,29 @@ PARTIALLY_ENQUEUED = 2
 ```
 - Discarded - All messages sent were unsucessfull.
 - Enqueued - All mesages sent were sucessfull.
-- Partially enqueued - Some messages were successfull and other weren'ts
+- Partially enqueued - Some messages were successfull and other weren't
 
-### Classes
+#### AwsFrameType
+```cpp
+WS_CONTINUATION
+WS_TEXT
+WS_BINARY
+WS_DISCONNECT = 0x08
+WS_PING
+WS_PONG
+```
+
+#### AwsEventType
+```cpp
+WS_EVT_CONNECT
+WS_EVT_DISCONNECT
+WS_EVT_PING
+WS_EVT_PONG
+WS_EVT_ERROR
+WS_EVT_DATA
+```
+
+### Classes/Structs
 
 #### AsyncWebServer
 Description:  
@@ -644,7 +684,15 @@ Methods:
 - `void end()`
   - Ends the server.
 
-
+#### AsyncWebSocketClient
+- The client associated with a specific websocket connection.
+- Constructor ommitted as the library will usually create it for you.
+- Methods have the same meaning as those in [AsyncWebSocket](#asyncwebsocket) as thus the explanation will be omitted.
+- Methods:
+  - `bool text(const uint8_t *message, size_t len)` with variations
+  - `bool binary(const uint8_t *message, size_t len)` with variations
+  - `bool ping(const uint8_t *data = NULL, size_t len = 0)` with variations
+  - `void close(uint16_t code = 0, const char *message = NULL)` with variations
 
 #### AsyncWebSocket
 Description:  
@@ -653,6 +701,8 @@ Can hold a variety of clients and send to either individual clients or all of th
 
 Constructor: `AsyncWebSocket(const String& URI)`  
 Methods: 
+- `void onEvent(AwsEventHandler handler)`
+  - Set a [function](#awseventhandler) to be called when events occur on the web socket.   
 - `bool ping(uint32 id, uint16_t *data = NULL, size_t len = 0)`
   - See [Ping Pong](#ping-pong).
   - Sends a ping frame to client with id `id`.
@@ -694,7 +744,7 @@ Methods:
 - `void cleanupClients(uint16_t maxClients = DEFAULT_MAX_WS_CLIENTS)`
   - Goes through the client list in the websocket and removes any that are disconnected/non-existant.
 
-### AsyncWebServerRequest
+#### AsyncWebServerRequest
 - A request that a client made to the server.
 - Stores the client that made the request, client, and information about the request.
 - This is more related to HTTP and Servers and thus will not be covered in detail.
@@ -711,3 +761,27 @@ Methods:
     - `content` is the content being sent.
     - `len` is the len of the content being sent.
     - `callback` is the [function](#awstemplateprocessor) that will proces the content and the return what will be sent to client.
+
+#### AwsFrameInfo
+- A struct with the header information of a frame.
+- See [Frame Structure](#frame-structure)
+- Values:
+  - `uint8_t message_opcode`
+    - The opcode of the message.
+    - Can be [AwsFrameType](#awsframetype).
+    - Only WS_TEXT adn WS_BINARY will be availble to the server. The rest will be handled by the library.
+  - `uint32_t num`
+    - The frame number of a fragmented message.
+  - `uint8_t final`
+    - Is this frame the final frame of the fragmented message.
+  - `uint8_t masked`
+    - Is this frame masked.
+  - `uint8_t opcode`
+    - The opcode of the specific frame.
+    - Difference with message_opcode is that if the message is fragmented, this can be WS_CONTINUATION while if it isn't it will be the same as message_opcode.
+  - `uint64_t length`
+    - Length of the data sent.
+  - `uint8_t mask[4]`
+    - Mask key
+  - `uint64_t index`
+    - offset of the data inside the frame.
