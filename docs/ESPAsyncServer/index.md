@@ -16,20 +16,29 @@ The following will be an appendix for the workshop which will go through each pa
 The guide assumes that you have a working ESP32 Wroom connected to your computer and the arduino IDE installed, which can be downloaded at [arduino.cc](https://www.arduino.cc/en/software).
   
 ### TOC
-- [Introduction](#introduction)
-  - [TOC](#toc)
-- [Setup](#setup)
-  - [Install ESP32 Board](#install-esp32-board)
-  - [Install the Libraries](#install-the-libraries)
-  - [Connect to the ESP32](#connect-to-the-esp32)
-- [LED Demo](#led-demo)
-  - [Blink Demo](#blink-demo)
-  - [Setting up WebServer](#setting-up-webserver)
-  - [HTML and JS for the LED](#html-and-js-for-the-led)
-  - [Final Code](#final-code)
 - [Appendix](#appendix)
-  - [AsyncWebServer](#asyncwebserver)
-  - [AsyncWebSocket](#asyncwebsocket)
+  - [Important Websocket Concepts](#important-websocket-concepts)
+    - [Introduction](#introduction-1)
+    - [Outline of Websockets](#outline-of-websockets)
+    - [Opening Handshake](#opening-handshake)
+    - [Data sending/receiving](#data-sendingreceiving)
+      - [Frame Structure](#frame-structure)
+      - [Frame Fragmentation](#frame-fragmentation)
+      - [Ping Pong](#ping-pong)
+      - [Masking](#masking)
+    - [Closing Handshake](#closing-handshake)
+    - [Pros and Cons of Websockets](#pros-and-cons-of-websockets)
+  - [Coding Reference](#coding-reference)
+    - [Aliases](#aliases)
+      - [ArRequstHandlerFunction](#arrequsthandlerfunction)
+      - [ArUploadHandlerFunctoin](#aruploadhandlerfunctoin)
+      - [ArBodyHandlerFunction](#arbodyhandlerfunction)
+    - [Enums](#enums)
+      - [WebRequestMethod](#webrequestmethod)
+    - [Classes](#classes)
+      - [AsyncWebServer](#asyncwebserver)
+      - [AsyncWebSocket](#asyncwebsocket)
+      - [SendStatus](#sendstatus)
 
 ## Setup
 
@@ -472,9 +481,113 @@ void loop() {
 
 
 
-## Appendix
+# Appendix
 
-### AsyncWebServer
+## Important Websocket Concepts
+
+### Introduction
+Websockets are a protocol using TCP that create a connection between a server and client so that both the server and client can send each other data bidirectionally and reliably.  
+
+### Outline of Websockets
+A websocket connection has 3 main states:  
+1. Opening handshake
+    - The client sends a request to the server to open a websocket connection and the server accepts.
+2. Data sending/receiving
+    - The client and server are both connected and are ready to either send or receive data from each other.
+3. Closing handshake  
+    - The client or server sends a request to close the websocket connection.
+
+### Opening Handshake
+The client sends an HTTP Upgrade to the server and the server will respond with a 101 response if the websocket will be opened or anything else if not.  
+Note that websockets is only available on HTTP/1.1 or greater as HTTP Upgrade is not supported on HTTP/1.0.
+
+### Data sending/receiving
+All data is sent in the form of frames with a frame header and message data. The frame header containes information such as the type of message being sent and the length of the message while the message data is the actual data being sent.  
+
+FIN and the opcode are both parts of the header which will be described in the next section.
+#### Frame Structure
+Some important header fields and their values is described below:
+- FIN:
+  - Refers to which part of a fragmented message a message belongs to. See [Frame Fragmentation](#frame-fragmentation).
+  - Values:
+    - 0 - Not the final frame of a message.
+    - 1 - The final frame of a message. 
+- Opcode:
+  - The type of frame being sent.
+  - Values:
+    - 0 - A continuation frame of a fragmented message. Should be set if frame is middle or final frame.
+    - 1 - A Text Data Frame. Application data stores UTF-8 encoded data.
+    - 2 - A binary Data Frame. Application data stores binary data
+    - 8 - A close frame. Initiates a closing handshake.
+    - 9 - Ping frame. See [Ping Ping](#ping-pong).
+    - 10 - Pong frame. See [Ping Ping](#ping-pong).
+- Masked:
+  - Tells if the message is masked or not.
+  - Values:
+    - 0 - Frame is not masked.
+    - 1 - Frame is masked.
+- Payload length:
+  - Tells how long the payload is.
+  - Values:
+    - 0-125: This value is the payload length.
+    - 126: The next 16 bits is the payload length.
+    - 127: the next 64 bits is the payload length.
+- Masking Key:
+  - The key to mask the data if need be.
+- Payload:
+  - Stores the data that is being sent.
+
+#### Frame Fragmentation
+Messages can also be split into multiple parts, which is called fragmentation. There are three parts to a fragmented message:  
+1. The first frame which will have an opcode $\ne$ 0 and FIN = 0.
+2. Any middle frame which will have an opcode = 0 and FIN = 0.
+3. The final frame which will have an opcode = 0 and FIN = 1.    
+
+#### Ping Pong
+If either member of the connection sends a ping frame, the other member must respond with a pong frame.  
+This is commonly used to check latency, or to make sure the connection is still alive.
+
+#### Masking
+The client must mask the frames sent to the server while a server must not mask the frames sent to the client. Masking is done through the a xor with the masking key and payload data.
+
+### Closing Handshake
+The client or server sends a closing frame. Then the recipient of the closing frame must send a closing frame back to finish the connection.  
+The computer that initiated the closing handshake must still accept all data and until it receives a closing frame back. This is to ensure no data is lost due to latency.  
+The closing frame can contain data which would be the reason why the connection was closed.
+
+
+### Pros and Cons of Websockets
+The main benefit of websockets is that a constant connection is made between the client and server. This is a big improvement over HTTP/S where a connection is created and closed every time a piece of data is sent. Additionally, this bidirectional connection allows data to be sent from the server to the client and the client to server without the client initiating it. This is different from HTTP/S as since HTTP/S is stateless, the server retains no information about the client and thus cannot send data to the client without the client's request.  
+  
+However, no technology is perfect and similarly neither is websockets. The main downside of websockets is the face that websockets require a stateful connection (the server keeping track of the current session information). This causes a lot of issues with scaling horizontally (by just adding more servers) as websites often use load balancers to move traffic from one server to another. Thus, if a client is moved to another server, the state data from their session could be lost. This requires more complicated logic to properly implement a horizontally scalable websocket system.
+
+
+## Coding Reference
+
+### Aliases
+#### ArRequstHandlerFunction
+`function<void(AsyncWebServer *request)>`
+#### ArUploadHandlerFunctoin
+`function<void(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)>`
+#### ArBodyHandlerFunction
+`function<void(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)>`
+
+### Enums
+#### WebRequestMethod
+```cpp
+  HTTP_GET = 0b00000001,
+  HTTP_POST = 0b00000010,
+  HTTP_DELETE = 0b00000100,
+  HTTP_PUT = 0b00001000,
+  HTTP_PATCH = 0b00010000,
+  HTTP_HEAD = 0b00100000,
+  HTTP_OPTIONS = 0b01000000,
+  HTTP_ANY = 0b01111111,
+```
+
+### Classes
+
+#### AsyncWebServer
 Description:  
 The server that will host the website and connect the requests from the user to the MCU.  
 Implemented using a TCP server on the port defined by the constructor.  
@@ -482,21 +595,70 @@ In this example, will be used to host the server but all connections will be han
 
 Constructor: `AsyncWebServer(int port)`  
 Methods:
-- `addHandler(AsyncWebHandler* handler)`
+- `AsyncCallbackWebHandler& on(const char *uri, WebRequestMethodComposite method, ArRequestHandlerFunction onRequest, ArUploadHandlerFunction onUpload = nullptr, ArBodyHandlerFunction onBody = nullptr)` with variation
+  - Handles different parts of requests to a specific uri, `uri`.
+  - The `method` is the HTTP method that will be used in the response.
+  - The `onrequest` function that will handle the 
+- `AsyncWebHandler& addHandler(AsyncWebHandler* handler)`
   - Adds a handler for incoming events to the server
   - For the sockets, you can use a [AsyncWebSocket](#asyncwebsocket) as it is a child of AsyncWebHandler
-- `removeHandler(AsyncWebHandler* handler)`
+  - Returns a reference to the handler added.
+- `bool removeHandler(AsyncWebHandler* handler)`
   - Removes an event handler for the server that was added to the server
-- `begin()`
+  - Returns true if the handler was found and successfully removed.
+- `void begin()`
   - Begins the server.
-- `end()`
+- `void end()`
   - Ends the server.
 
 
 
-### AsyncWebSocket
+#### AsyncWebSocket
 Description:  
-
+A web handler that can be used in the [AsyncWebServer](#asyncwebserver) to handle events using a websocket.  
+Can hold a variety of clients and send to either individual clients or all of them at once.
 
 Constructor: `AsyncWebSocket(const String& URI)`  
-Methods:
+Methods: 
+- `bool ping(uint32 id, uint16_t *data = NULL, size_t len = 0)`
+  - See [Ping Pong](#ping-pong).
+  - Sends a ping frame to client with id `id`.
+  - The data of the frame will be `data` with a length of `len`.
+  - Returns true if ping is sent sucessfully.
+- `SendStatus pingAll(const uint8_t *data = NULL, size_t len=0)`
+  - See [Ping Pong](#ping-pong).
+  - Sends a ping frame to all connected clients.
+  - The data of the frame will be `data` with a length of `len`.
+  - Returns a [SendStatus](#sendstatus).
+- `bool text(uint32_t id, const uint8_t* message, size_t len)` with extra variations
+  - See [Data Sending/Receiving](#data-sendingreceiving).
+  - Sends a text frame to the client with id `id`.
+  - The message sent will be `message` and message length is `len`.
+  - Returns whether the frame was successfully sent.
+- `SendStatus textAll(const uint8_t* message, size_t len)` with extra variations
+  - See [Data Sending/Receiving](#data-sendingreceiving).
+  - Sends a text frame to the all connected clients.
+  - The message sent will be `message` and message length is `len`.
+  - Returns [SendStatus](#sendstatus).
+- `bool binary(uint32_t id, const uint8_t* message, size_t len)` with extra variations
+  - See [Data Sending/Receiving](#data-sendingreceiving).
+  - Sends a binary frame to the client with id `id`.
+  - The message sent will be `message` and message length is `len`.
+  - Returns whether the frame was successfully sent.
+- `SendStatus binaryAll(const uint8_t* message, size_t len)` with extra variations
+  - See [Data Sending/Receiving](#data-sendingreceiving).
+  - Sends a binary frame to the all connected clients.
+  - The message sent will be `message` and message length is `len`.
+  - Returns [SendStatus](#sendstatus).
+- `void close(uint32_t id, uint16_t code = 0, const char* message = NULL)`
+  - See [Closing Handshake](#closing-handshake).
+  - Sends a closing handshake to client with id `id`.
+  - The optional message sent will be `message`.
+- `void closeAll(uint16_t code = 0, const char* message = NULL)`
+  - See [Closing Handshake](#closing-handshake).
+  - Sends a closing handshake to all connected clients.
+  - The optional message sent will be `message`.
+- `void cleanupClients(uint16_t maxClients = DEFAULT_MAX_WS_CLIENTS)`
+  - Goes through the client list in the websocket and removes any that are disconnected/non-existant.
+
+#### SendStatus
