@@ -1,12 +1,7 @@
 ---
-title: Quickstart title
-shortTitle: <subject> # Max 31 characters
-intro: 'Article intro. Highlight that the guide is quick and to the point.'
-type: quick_start
-topics:
-  - <topic> # One or more from list of allowed topics: https://github.com/github/docs/blob/main/data/allowed-topics.js
-versions:
-  - <version>
+title: ESP Async Web Server Documentation
+shortTitle: Async Web Server Docs # Max 31 characters
+intro: 'Some documentation and a guide on how to use the ESPAsyncWebServer library.'
 ---
 
 # Introduction
